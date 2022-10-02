@@ -1,0 +1,53 @@
+name: build
+
+on: [push, pull_request]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    container: alpine
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: fetch prerequisites
+      run: |
+        apk add --no-cache coreutils curl gcc make musl-dev openssl-dev tcl
+    - name: fetch source
+      run: |
+        curl -Lv https://github.com/redis-stack/redis-stack/archive/refs/tags/v6.2.4-v1.tar.gz | tar xz --strip-components=1
+    - name: make
+      run: |
+        make CFLAGS="-static" LDFLAGS="-static"
+    - name: make test
+      run: |
+        cat > tests_to_skip <<EOF
+        integration/psync2-reg
+        integration/failover
+        EOF
+        # static builds don't produce stacktrace as expected by test
+        # (see https://github.com/redis/redis/issues/4135)
+        # and aren't properly detected by tests/integration/logging.tcl.
+        # So forcefully ignore them by editing test out of script.
+        sed -i '/} elseif {$system_name eq {linux}} {/d' tests/integration/logging.tcl
+        ./runtest
+    - name: store build artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: binaries
+        path: |
+          src/redis-cli
+          src/redis-sentinel
+          src/redis-server
+    - name: Release (if tagged)
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          src/redis-cli
+          src/redis-sentinel
+          src/redis-server
+        draft: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
