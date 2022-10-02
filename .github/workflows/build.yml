@@ -40,6 +40,8 @@ jobs:
           src/redis-cli
           src/redis-sentinel
           src/redis-server
+          src/redis-stack-server
+          src/redis-benchmark
     - name: Release (if tagged)
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
